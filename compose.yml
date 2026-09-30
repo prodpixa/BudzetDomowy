@@ -6,9 +6,8 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
-      # Dostępne w sieci domowej i przez Tailscale. Router nic nie przekierowuje,
-      # więc z internetu port jest niewidoczny.
-      - "${BUDZET_HOST_PORT:-8420}:8420"
+      # Tylko lokalnie; z zewnątrz dostęp przez HTTPS (tailscale serve, port 8443).
+      - "127.0.0.1:${BUDZET_HOST_PORT:-8420}:8420"
     volumes:
       - "${BUDZET_DATA_PATH:-/mnt/dietpi_userdata/budzet}:/data"
     # Utwardzenie: system plików kontenera tylko do odczytu (zapis wyłącznie do /data),
