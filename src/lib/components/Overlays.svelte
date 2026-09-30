@@ -74,6 +74,17 @@
   .toast.info :global(svg) {
     color: var(--accent);
   }
+  @media (max-width: 760px) {
+    .toasts {
+      left: 12px;
+      right: 12px;
+      bottom: calc(76px + env(safe-area-inset-bottom));
+    }
+    .toast {
+      min-width: 0;
+      max-width: none;
+    }
+  }
   @keyframes slide {
     from {
       opacity: 0;

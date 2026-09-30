@@ -27,4 +27,16 @@
     align-items: center;
     gap: 10px;
   }
+  @media (max-width: 760px) {
+    .page-head > div:first-child {
+      width: 100%;
+    }
+    .right {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+    .right > :global(*) {
+      flex: 1;
+    }
+  }
 </style>

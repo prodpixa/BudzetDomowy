@@ -99,7 +99,7 @@
       {isExpense ? "Planowane wydatki i rachunki" : "Planowane przychody"}
     </h2>
     <button class="btn sm" onclick={copyPrevious} title="Kopiuje pozycje z ostatniego miesiąca, w którym coś zaplanowano">
-      <Copy size={14} /> Skopiuj z poprzedniego
+      <Copy size={14} /> <span class="copy-long">Skopiuj z poprzedniego</span><span class="copy-short">Kopiuj</span>
     </button>
   </div>
 
@@ -196,6 +196,17 @@
   }
   .card-head {
     margin-bottom: 4px;
+  }
+  .copy-short {
+    display: none;
+  }
+  @media (max-width: 760px) {
+    .copy-long {
+      display: none;
+    }
+    .copy-short {
+      display: inline;
+    }
   }
   .kind-icon {
     display: grid;

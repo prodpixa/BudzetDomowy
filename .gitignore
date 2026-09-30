@@ -14,3 +14,10 @@ vite.config.ts.timestamp-*
 
 # Pliki baz danych / kopie zapasowe
 *.db
+*.db-shm
+*.db-wal
+backups-malinka/
+
+# Build serwera
+server/target/
+.dev-data/

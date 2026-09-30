@@ -413,6 +413,19 @@
     }
     .side {
       position: static;
+      order: -1;
+    }
+  }
+  @media (max-width: 760px) {
+    .side-total {
+      font-size: 24px;
+    }
+    .list {
+      padding: 8px 6px 12px;
+    }
+    .row {
+      padding: 9px 8px;
+      gap: 10px;
     }
   }
 </style>

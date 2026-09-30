@@ -364,4 +364,30 @@
       grid-template-columns: 1fr;
     }
   }
+  @media (max-width: 760px) {
+    .kpis {
+      gap: 10px;
+    }
+    .kpi {
+      padding: 14px;
+    }
+    .kpi strong,
+    .kpi.hero strong {
+      font-size: 19px;
+    }
+    .kpi-head {
+      font-size: 12px;
+    }
+    .add {
+      flex-wrap: wrap;
+    }
+    .add > .input:first-child {
+      flex-basis: 100%;
+    }
+    .amt,
+    .date {
+      flex: 1;
+      width: auto;
+    }
+  }
 </style>

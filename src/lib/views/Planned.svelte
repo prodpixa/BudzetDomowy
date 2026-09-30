@@ -100,4 +100,17 @@
       grid-template-columns: 1fr;
     }
   }
+  @media (max-width: 760px) {
+    .balance {
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      padding: 14px 16px;
+    }
+    .icon {
+      display: none;
+    }
+    .b-item strong {
+      font-size: 16px;
+    }
+  }
 </style>

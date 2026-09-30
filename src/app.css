@@ -414,3 +414,37 @@ textarea.input {
   border: 3px solid transparent;
   background-clip: content-box;
 }
+
+/* ============ Telefon ============ */
+
+/* Ekrany dotykowe nie mają „najechania” – przyciski akcji zawsze widoczne. */
+@media (hover: none) {
+  .actions {
+    opacity: 1 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 16px 14px 28px;
+    gap: 14px;
+  }
+  .page-head {
+    gap: 12px;
+  }
+  .page-head p {
+    font-size: 13px;
+  }
+  h1 {
+    font-size: 20px;
+  }
+  .card {
+    padding: 16px;
+    border-radius: var(--radius);
+  }
+  /* 16px: iOS nie przybliża strony przy wpisywaniu */
+  .input,
+  textarea.input {
+    font-size: 16px;
+  }
+}

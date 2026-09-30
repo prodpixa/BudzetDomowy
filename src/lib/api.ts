@@ -1,6 +1,37 @@
-import { invoke } from "@tauri-apps/api/core";
-
+// Komunikacja z serwerem. Każda operacja to POST /api/<nazwa> z argumentami w JSON.
 // Wszystkie kwoty są w groszach (liczby całkowite).
+
+/** Serwer odpowiedział 401 – sesja wygasła lub użytkownik się wylogował. */
+export class UnauthorizedError extends Error {}
+
+let onUnauthorized: () => void = () => {};
+export function setUnauthorizedHandler(fn: () => void) {
+  onUnauthorized = fn;
+}
+
+async function request<T>(url: string, init: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, { credentials: "same-origin", ...init });
+  } catch {
+    throw new Error("Brak połączenia z serwerem");
+  }
+  if (res.status === 401 && !url.endsWith("/auth/login")) {
+    onUnauthorized();
+    throw new UnauthorizedError("Zaloguj się ponownie");
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(body?.error ?? `Błąd serwera (${res.status})`);
+  return body as T;
+}
+
+function invoke<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
+  return request<T>(`/api/${command}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+}
 
 export interface Category {
   id: number | null;
@@ -138,7 +169,22 @@ export const api = {
   getOpeningBalance: () => invoke<number>("get_opening_balance"),
   setOpeningBalance: (amount: number) => invoke<void>("set_opening_balance", { amount }),
 
-  exportCsv: (dir: string) => invoke<string[]>("export_csv", { dir }),
-  backupDb: (path: string) => invoke<void>("backup_db", { path }),
-  restoreDb: (path: string) => invoke<void>("restore_db", { path }),
+  // Pliki: przeglądarka pobiera je zwykłym linkiem (ciasteczko sesji idzie automatycznie).
+  exportUrl: "/api/export.zip",
+  backupUrl: "/api/backup.db",
+  restoreDb: (file: File) =>
+    request<void>("/api/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: file,
+    }),
+
+  me: () => request<{ username: string }>("/api/auth/me", { method: "GET" }),
+  login: (username: string, password: string) =>
+    request<{ username: string }>("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    }),
+  logout: () => request<void>("/api/auth/logout", { method: "POST" }),
 };

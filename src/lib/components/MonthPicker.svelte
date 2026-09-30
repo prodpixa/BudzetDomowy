@@ -30,6 +30,9 @@
     border: 1px solid var(--border);
     box-shadow: var(--shadow-sm);
   }
+  .picker {
+    justify-content: space-between;
+  }
   .label {
     min-width: 150px;
     text-align: center;

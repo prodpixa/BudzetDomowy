@@ -1,6 +1,8 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { Trash2 } from "@lucide/svelte";
   import { api } from "$lib/api";
+  import { money } from "$lib/format";
   import { app, type EntryEditor } from "$lib/state.svelte";
   import { categoryIcon, slotColor } from "$lib/icons";
   import Modal from "./Modal.svelte";
@@ -22,6 +24,21 @@
   const isNew = item.id === null;
   const title = `${isNew ? "Nowy" : "Edytuj"} ${isExpense ? "wydatek" : "przychód"}`;
   const canSave = $derived(name.trim() !== "" && !!amount && amount > 0 && date !== "");
+
+  async function remove() {
+    const id = item.id;
+    if (id === null) return;
+    const ok = await app.confirm(
+      isExpense ? "Usunąć wydatek?" : "Usunąć przychód?",
+      `„${item.name}” na kwotę ${money(item.amount)} zostanie trwale usunięty.`,
+    );
+    if (!ok) return;
+    const done = await app.mutate(
+      () => (isExpense ? api.deleteExpense(id) : api.deleteIncome(id)),
+      "Usunięto",
+    );
+    if (done !== undefined) app.editor = null;
+  }
 
   async function save(e?: Event) {
     e?.preventDefault();
@@ -107,6 +124,9 @@
   </form>
 
   {#snippet footer()}
+    {#if !isNew}
+      <button class="btn ghost delete" type="button" onclick={remove}><Trash2 size={16} /> Usuń</button>
+    {/if}
     <button class="btn" type="button" onclick={() => (app.editor = null)}>Anuluj</button>
     <button class="btn primary" type="submit" form="entry-form" disabled={!canSave || saving}>
       {isNew ? "Dodaj" : "Zapisz"}
@@ -115,6 +135,10 @@
 </Modal>
 
 <style>
+  .delete {
+    margin-right: auto;
+    color: var(--expense);
+  }
   form {
     display: flex;
     flex-direction: column;
@@ -129,6 +153,14 @@
   }
   .amount {
     width: 150px;
+  }
+  @media (max-width: 760px) {
+    .row {
+      flex-direction: column;
+    }
+    .amount {
+      width: 100%;
+    }
   }
   em {
     font-style: normal;

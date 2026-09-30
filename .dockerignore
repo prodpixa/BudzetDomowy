@@ -1,0 +1,12 @@
+# Do obrazu wysyłamy tylko to, czego potrzebuje Dockerfile – szybszy build, żadnych sekretów.
+.git
+.env
+.env.*
+node_modules
+build
+.svelte-kit
+.dev-data
+backups-malinka
+server/target
+*.db
+*.db-*

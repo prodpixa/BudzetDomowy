@@ -295,4 +295,25 @@
       grid-template-columns: 1fr;
     }
   }
+  @media (max-width: 760px) {
+    .kpis {
+      gap: 10px;
+    }
+    .kpi {
+      padding: 14px;
+    }
+    .kpi strong {
+      font-size: 19px;
+    }
+    .kpi-head {
+      font-size: 12px;
+    }
+    .pie {
+      justify-content: center;
+      gap: 16px;
+    }
+    .legend {
+      min-width: 100%;
+    }
+  }
 </style>

@@ -1,4 +1,12 @@
-import { api, type Category, type Expense, type Income, type Source } from "./api";
+import {
+  api,
+  setUnauthorizedHandler,
+  UnauthorizedError,
+  type Category,
+  type Expense,
+  type Income,
+  type Source,
+} from "./api";
 import { currentMonth } from "./format";
 
 export type View = "dashboard" | "expenses" | "incomes" | "planned" | "vouchers" | "settings";
@@ -28,6 +36,8 @@ function initialTheme(): Theme {
 }
 
 class AppState {
+  /** undefined = jeszcze sprawdzamy sesję, null = niezalogowany */
+  user = $state<string | null | undefined>(undefined);
   view = $state<View>("dashboard");
   month = $state(currentMonth());
   theme = $state<Theme>(initialTheme());
@@ -70,6 +80,7 @@ class AppState {
   }
 
   error(e: unknown) {
+    if (e instanceof UnauthorizedError) return; // pokaże się ekran logowania
     this.toast(typeof e === "string" ? e : String((e as Error)?.message ?? e), "error");
   }
 
@@ -94,3 +105,8 @@ class AppState {
 }
 
 export const app = new AppState();
+
+setUnauthorizedHandler(() => {
+  app.user = null;
+  app.editor = null;
+});

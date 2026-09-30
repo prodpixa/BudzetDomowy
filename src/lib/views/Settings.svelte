@@ -1,9 +1,22 @@
 <script lang="ts">
-  import { Check, Database, Download, Monitor, Moon, Pencil, Plus, Sun, Trash2, Upload, Wallet } from "@lucide/svelte";
-  import { open, save } from "@tauri-apps/plugin-dialog";
+  import {
+    Check,
+    Database,
+    Download,
+    LogOut,
+    Monitor,
+    Moon,
+    Pencil,
+    Plus,
+    Sun,
+    Trash2,
+    Upload,
+    UserRound,
+    Wallet,
+  } from "@lucide/svelte";
   import { api, type Category, type Source } from "$lib/api";
   import { app, type Theme } from "$lib/state.svelte";
-  import { money, today } from "$lib/format";
+  import { money } from "$lib/format";
   import { CATEGORY_ICONS, SLOT_NAMES, categoryIcon, slotColor } from "$lib/icons";
   import PageHead from "$lib/components/PageHead.svelte";
   import Modal from "$lib/components/Modal.svelte";
@@ -99,42 +112,33 @@
   }
 
   // ---- dane ----
-  async function exportCsv() {
-    const dir = await open({ directory: true, title: "Wybierz folder na pliki CSV" });
-    if (typeof dir !== "string") return;
-    const files = await app.mutate(() => api.exportCsv(dir));
-    if (files) app.toast(`Zapisano ${files.length} pliki CSV w wybranym folderze`);
-  }
-
-  async function backup() {
-    const path = await save({
-      title: "Zapisz kopię zapasową",
-      defaultPath: `budzet-kopia-${today()}.db`,
-      filters: [{ name: "Baza budżetu", extensions: ["db"] }],
-    });
-    if (!path) return;
-    await app.mutate(() => api.backupDb(path), "Kopia zapasowa zapisana");
-  }
+  let fileInput = $state<HTMLInputElement>();
 
   async function restore() {
-    const path = await open({
-      title: "Wybierz plik kopii zapasowej",
-      filters: [{ name: "Baza budżetu", extensions: ["db"] }],
-    });
-    if (typeof path !== "string") return;
+    const file = fileInput?.files?.[0];
+    if (fileInput) fileInput.value = ""; // pozwala wybrać ten sam plik ponownie
+    if (!file) return;
     const ok = await app.confirm(
       "Przywrócić kopię?",
-      "Wszystkie obecne dane zostaną zastąpione danymi z kopii. Tej operacji nie można cofnąć. Warto najpierw zrobić kopię obecnych danych.",
+      `Wszystkie obecne dane zostaną zastąpione danymi z pliku „${file.name}”. Serwer zrobi wcześniej kopię obecnego stanu.`,
       "Przywróć",
     );
     if (!ok) return;
-    const r = await app.mutate(() => api.restoreDb(path), "Przywrócono dane z kopii");
+    const r = await app.mutate(() => api.restoreDb(file), "Przywrócono dane z kopii");
     if (r !== undefined) {
       await app.loadDictionaries();
       const v = await api.getOpeningBalance();
       openingSaved = v;
       openingNegative = v < 0;
       opening = Math.abs(v) || null;
+    }
+  }
+
+  async function logout() {
+    try {
+      await api.logout();
+    } finally {
+      app.user = null;
     }
   }
 </script>
@@ -216,17 +220,24 @@
       </ul>
     </section>
 
-    <section class="card wide">
+    <section class="card">
       <div class="card-head"><h2><Database size={17} /> Dane</h2></div>
       <p class="hint">
-        Wszystko zapisuje się automatycznie w lokalnej bazie SQLite. Kopia zapasowa to jeden plik .db, który
-        można potem przywrócić.
+        Dane są na serwerze w bazie SQLite. Serwer codziennie sam robi kopię zapasową (14 ostatnich dni).
+        Tutaj możesz pobrać kopię na to urządzenie albo przywrócić dane z pliku .db.
       </p>
       <div class="data-actions">
-        <button class="btn" onclick={exportCsv}><Download size={16} /> Eksportuj do CSV</button>
-        <button class="btn" onclick={backup}><Database size={16} /> Zrób kopię zapasową</button>
-        <button class="btn" onclick={restore}><Upload size={16} /> Przywróć z kopii</button>
+        <a class="btn" href={api.exportUrl} download><Download size={16} /> Eksport do CSV (ZIP)</a>
+        <a class="btn" href={api.backupUrl} download><Database size={16} /> Pobierz kopię bazy</a>
+        <button class="btn" onclick={() => fileInput?.click()}><Upload size={16} /> Przywróć z kopii…</button>
+        <input bind:this={fileInput} type="file" accept=".db,application/vnd.sqlite3" hidden onchange={restore} />
       </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2><UserRound size={17} /> Konto</h2></div>
+      <p class="hint">Zalogowano jako <strong>{app.user}</strong>. Dane budżetu są wspólne dla obu kont.</p>
+      <button class="btn" onclick={logout}><LogOut size={16} /> Wyloguj</button>
     </section>
   </div>
 </div>
@@ -288,9 +299,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 16px;
     align-items: start;
-  }
-  .wide {
-    grid-column: 1 / -1;
   }
   .hint {
     margin: -6px 0 14px;
@@ -392,6 +400,10 @@
     border-radius: 9px;
     background: color-mix(in srgb, var(--c) 16%, transparent);
     color: var(--c);
+  }
+  a.btn {
+    text-decoration: none;
+    color: inherit;
   }
   .data-actions {
     display: flex;

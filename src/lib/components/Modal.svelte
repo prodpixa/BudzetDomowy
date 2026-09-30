@@ -87,6 +87,18 @@
     padding: 14px 20px;
     border-top: 1px solid var(--border);
   }
+  @media (max-width: 760px) {
+    .backdrop {
+      place-items: end stretch;
+    }
+    .modal {
+      width: 100% !important;
+      max-width: 100%;
+      max-height: 92dvh;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
   @keyframes fade {
     from {
       opacity: 0;

@@ -1,26 +1,19 @@
+//! Logika aplikacji: każda funkcja dostaje połączenie z bazą i zwraca dane gotowe do JSON.
+//! Warstwa HTTP (`api.rs`) tylko wywołuje te funkcje po nazwie.
+
 use std::fmt::Display;
-use std::fs;
-use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard};
+use std::io::Write;
+use std::path::Path;
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
-use tauri::State;
 
 use crate::db;
 
-pub struct AppState {
-    pub conn: Mutex<Connection>,
-}
+pub type Res<T> = Result<T, String>;
 
-type Res<T> = Result<T, String>;
-
-fn err<E: Display>(e: E) -> String {
+pub fn err<E: Display>(e: E) -> String {
     e.to_string()
-}
-
-fn lock<'a>(state: &'a State<AppState>) -> Res<MutexGuard<'a, Connection>> {
-    state.conn.lock().map_err(err)
 }
 
 // ---------- daty ----------
@@ -86,9 +79,7 @@ pub struct Category {
     pub icon: String,
 }
 
-#[tauri::command]
-pub fn list_categories(state: State<AppState>) -> Res<Vec<Category>> {
-    let conn = lock(&state)?;
+pub fn list_categories(conn: &Connection) -> Res<Vec<Category>> {
     let mut stmt = conn
         .prepare("SELECT id, name, color, icon FROM categories ORDER BY sort_order, id")
         .map_err(err)?;
@@ -100,12 +91,10 @@ pub fn list_categories(state: State<AppState>) -> Res<Vec<Category>> {
     rows.collect::<Result<_, _>>().map_err(err)
 }
 
-#[tauri::command]
-pub fn save_category(state: State<AppState>, item: Category) -> Res<i64> {
+pub fn save_category(conn: &Connection, item: Category) -> Res<i64> {
     if item.name.trim().is_empty() {
         return Err("Nazwa kategorii nie może być pusta".into());
     }
-    let conn = lock(&state)?;
     match item.id {
         Some(id) => {
             conn.execute(
@@ -127,9 +116,7 @@ pub fn save_category(state: State<AppState>, item: Category) -> Res<i64> {
     }
 }
 
-#[tauri::command]
-pub fn delete_category(state: State<AppState>, id: i64) -> Res<()> {
-    let conn = lock(&state)?;
+pub fn delete_category(conn: &Connection, id: i64) -> Res<()> {
     conn.execute("DELETE FROM categories WHERE id = ?1", [id]).map_err(err)?;
     Ok(())
 }
@@ -143,9 +130,7 @@ pub struct Source {
     pub name: String,
 }
 
-#[tauri::command]
-pub fn list_sources(state: State<AppState>) -> Res<Vec<Source>> {
-    let conn = lock(&state)?;
+pub fn list_sources(conn: &Connection) -> Res<Vec<Source>> {
     let mut stmt = conn
         .prepare("SELECT id, name FROM income_sources ORDER BY sort_order, id")
         .map_err(err)?;
@@ -155,12 +140,10 @@ pub fn list_sources(state: State<AppState>) -> Res<Vec<Source>> {
     rows.collect::<Result<_, _>>().map_err(err)
 }
 
-#[tauri::command]
-pub fn save_source(state: State<AppState>, item: Source) -> Res<i64> {
+pub fn save_source(conn: &Connection, item: Source) -> Res<i64> {
     if item.name.trim().is_empty() {
         return Err("Nazwa źródła nie może być pusta".into());
     }
-    let conn = lock(&state)?;
     match item.id {
         Some(id) => {
             conn.execute(
@@ -182,9 +165,7 @@ pub fn save_source(state: State<AppState>, item: Source) -> Res<i64> {
     }
 }
 
-#[tauri::command]
-pub fn delete_source(state: State<AppState>, id: i64) -> Res<()> {
-    let conn = lock(&state)?;
+pub fn delete_source(conn: &Connection, id: i64) -> Res<()> {
     conn.execute("DELETE FROM income_sources WHERE id = ?1", [id]).map_err(err)?;
     Ok(())
 }
@@ -202,10 +183,8 @@ pub struct Expense {
     pub note: String,
 }
 
-#[tauri::command]
-pub fn list_expenses(state: State<AppState>, month: String) -> Res<Vec<Expense>> {
+pub fn list_expenses(conn: &Connection, month: String) -> Res<Vec<Expense>> {
     let (start, end) = month_bounds(&month)?;
-    let conn = lock(&state)?;
     let mut stmt = conn
         .prepare(
             "SELECT id, name, amount, date, category_id, note FROM expenses
@@ -227,11 +206,9 @@ pub fn list_expenses(state: State<AppState>, month: String) -> Res<Vec<Expense>>
     rows.collect::<Result<_, _>>().map_err(err)
 }
 
-#[tauri::command]
-pub fn save_expense(state: State<AppState>, item: Expense) -> Res<i64> {
+pub fn save_expense(conn: &Connection, item: Expense) -> Res<i64> {
     validate_entry(&item.name, item.amount)?;
     validate_date(&item.date)?;
-    let conn = lock(&state)?;
     match item.id {
         Some(id) => {
             conn.execute(
@@ -254,9 +231,7 @@ pub fn save_expense(state: State<AppState>, item: Expense) -> Res<i64> {
     }
 }
 
-#[tauri::command]
-pub fn delete_expense(state: State<AppState>, id: i64) -> Res<()> {
-    let conn = lock(&state)?;
+pub fn delete_expense(conn: &Connection, id: i64) -> Res<()> {
     conn.execute("DELETE FROM expenses WHERE id = ?1", [id]).map_err(err)?;
     Ok(())
 }
@@ -274,10 +249,8 @@ pub struct Income {
     pub note: String,
 }
 
-#[tauri::command]
-pub fn list_incomes(state: State<AppState>, month: String) -> Res<Vec<Income>> {
+pub fn list_incomes(conn: &Connection, month: String) -> Res<Vec<Income>> {
     let (start, end) = month_bounds(&month)?;
-    let conn = lock(&state)?;
     let mut stmt = conn
         .prepare(
             "SELECT id, name, amount, date, source_id, note FROM incomes
@@ -299,11 +272,9 @@ pub fn list_incomes(state: State<AppState>, month: String) -> Res<Vec<Income>> {
     rows.collect::<Result<_, _>>().map_err(err)
 }
 
-#[tauri::command]
-pub fn save_income(state: State<AppState>, item: Income) -> Res<i64> {
+pub fn save_income(conn: &Connection, item: Income) -> Res<i64> {
     validate_entry(&item.name, item.amount)?;
     validate_date(&item.date)?;
-    let conn = lock(&state)?;
     match item.id {
         Some(id) => {
             conn.execute(
@@ -326,9 +297,7 @@ pub fn save_income(state: State<AppState>, item: Income) -> Res<i64> {
     }
 }
 
-#[tauri::command]
-pub fn delete_income(state: State<AppState>, id: i64) -> Res<()> {
-    let conn = lock(&state)?;
+pub fn delete_income(conn: &Connection, id: i64) -> Res<()> {
     conn.execute("DELETE FROM incomes WHERE id = ?1", [id]).map_err(err)?;
     Ok(())
 }
@@ -354,11 +323,9 @@ fn validate_kind(kind: &str) -> Res<()> {
     }
 }
 
-#[tauri::command]
-pub fn list_planned(state: State<AppState>, month: String, kind: String) -> Res<Vec<Planned>> {
+pub fn list_planned(conn: &Connection, month: String, kind: String) -> Res<Vec<Planned>> {
     parse_month(&month)?;
     validate_kind(&kind)?;
-    let conn = lock(&state)?;
     let mut stmt = conn
         .prepare(
             "SELECT id, kind, month, name, amount, note, done FROM planned_items
@@ -381,12 +348,10 @@ pub fn list_planned(state: State<AppState>, month: String, kind: String) -> Res<
     rows.collect::<Result<_, _>>().map_err(err)
 }
 
-#[tauri::command]
-pub fn save_planned(state: State<AppState>, item: Planned) -> Res<i64> {
+pub fn save_planned(conn: &Connection, item: Planned) -> Res<i64> {
     validate_entry(&item.name, item.amount)?;
     validate_kind(&item.kind)?;
     parse_month(&item.month)?;
-    let conn = lock(&state)?;
     match item.id {
         Some(id) => {
             conn.execute(
@@ -410,17 +375,13 @@ pub fn save_planned(state: State<AppState>, item: Planned) -> Res<i64> {
     }
 }
 
-#[tauri::command]
-pub fn set_planned_done(state: State<AppState>, id: i64, done: bool) -> Res<()> {
-    let conn = lock(&state)?;
+pub fn set_planned_done(conn: &Connection, id: i64, done: bool) -> Res<()> {
     conn.execute("UPDATE planned_items SET done = ?1 WHERE id = ?2", params![done, id])
         .map_err(err)?;
     Ok(())
 }
 
-#[tauri::command]
-pub fn delete_planned(state: State<AppState>, id: i64) -> Res<()> {
-    let conn = lock(&state)?;
+pub fn delete_planned(conn: &Connection, id: i64) -> Res<()> {
     conn.execute("DELETE FROM planned_items WHERE id = ?1", [id]).map_err(err)?;
     Ok(())
 }
@@ -436,16 +397,14 @@ pub struct CopyResult {
 
 /// Kopiuje pozycje z najbliższego wcześniejszego miesiąca, który ma jakieś pozycje.
 /// Pozycje o nazwie już obecnej w bieżącym miesiącu są pomijane.
-#[tauri::command]
 pub fn copy_planned_from_previous(
-    state: State<AppState>,
+    conn: &Connection,
     month: String,
     kind: String,
 ) -> Res<CopyResult> {
     parse_month(&month)?;
     validate_kind(&kind)?;
-    let mut conn = lock(&state)?;
-    let tx = conn.transaction().map_err(err)?;
+    let tx = conn.unchecked_transaction().map_err(err)?;
 
     let from_month: Option<String> = tx
         .query_row(
@@ -493,10 +452,8 @@ pub struct Voucher {
     pub note: String,
 }
 
-#[tauri::command]
-pub fn list_vouchers(state: State<AppState>, month: String) -> Res<Vec<Voucher>> {
+pub fn list_vouchers(conn: &Connection, month: String) -> Res<Vec<Voucher>> {
     let (start, end) = month_bounds(&month)?;
-    let conn = lock(&state)?;
     let mut stmt = conn
         .prepare(
             "SELECT id, kind, place, amount, date, note FROM voucher_entries
@@ -518,14 +475,12 @@ pub fn list_vouchers(state: State<AppState>, month: String) -> Res<Vec<Voucher>>
     rows.collect::<Result<_, _>>().map_err(err)
 }
 
-#[tauri::command]
-pub fn save_voucher(state: State<AppState>, item: Voucher) -> Res<i64> {
+pub fn save_voucher(conn: &Connection, item: Voucher) -> Res<i64> {
     validate_entry(&item.place, item.amount)?;
     validate_date(&item.date)?;
     if item.kind != "topup" && item.kind != "spend" {
         return Err(format!("Nieznany rodzaj wpisu: {}", item.kind));
     }
-    let conn = lock(&state)?;
     match item.id {
         Some(id) => {
             conn.execute(
@@ -548,9 +503,7 @@ pub fn save_voucher(state: State<AppState>, item: Voucher) -> Res<i64> {
     }
 }
 
-#[tauri::command]
-pub fn delete_voucher(state: State<AppState>, id: i64) -> Res<()> {
-    let conn = lock(&state)?;
+pub fn delete_voucher(conn: &Connection, id: i64) -> Res<()> {
     conn.execute("DELETE FROM voucher_entries WHERE id = ?1", [id]).map_err(err)?;
     Ok(())
 }
@@ -566,10 +519,8 @@ pub struct VoucherSummary {
     pub month_spends: i64,
 }
 
-#[tauri::command]
-pub fn voucher_summary(state: State<AppState>, month: String) -> Res<VoucherSummary> {
+pub fn voucher_summary(conn: &Connection, month: String) -> Res<VoucherSummary> {
     let (start, end) = month_bounds(&month)?;
-    let conn = lock(&state)?;
     let sum = |kind: &str, from: &str, to: &str| -> Res<i64> {
         conn.query_row(
             "SELECT COALESCE(SUM(amount), 0) FROM voucher_entries
@@ -664,10 +615,8 @@ fn planned_totals(conn: &Connection, month: &str, kind: &str) -> Res<PlannedTota
     .map_err(err)
 }
 
-#[tauri::command]
-pub fn month_summary(state: State<AppState>, month: String) -> Res<MonthSummary> {
+pub fn month_summary(conn: &Connection, month: String) -> Res<MonthSummary> {
     let (start, end) = month_bounds(&month)?;
-    let conn = lock(&state)?;
 
     let carried_over = opening_balance(&conn)? + sum_between(&conn, "incomes", "", &start)?
         - sum_between(&conn, "expenses", "", &start)?;
@@ -742,10 +691,8 @@ pub struct TrendPoint {
 }
 
 /// Przychody i wydatki z `count` miesięcy kończących się na `month`.
-#[tauri::command]
-pub fn month_trend(state: State<AppState>, month: String, count: u32) -> Res<Vec<TrendPoint>> {
+pub fn month_trend(conn: &Connection, month: String, count: u32) -> Res<Vec<TrendPoint>> {
     let count = count.clamp(1, 24) as i32;
-    let conn = lock(&state)?;
     let mut out = Vec::with_capacity(count as usize);
     for i in (0..count).rev() {
         let m = shift_month(&month, -i)?;
@@ -761,15 +708,11 @@ pub fn month_trend(state: State<AppState>, month: String, count: u32) -> Res<Vec
 
 // ---------- ustawienia ----------
 
-#[tauri::command]
-pub fn get_opening_balance(state: State<AppState>) -> Res<i64> {
-    let conn = lock(&state)?;
+pub fn get_opening_balance(conn: &Connection) -> Res<i64> {
     opening_balance(&conn)
 }
 
-#[tauri::command]
-pub fn set_opening_balance(state: State<AppState>, amount: i64) -> Res<()> {
-    let conn = lock(&state)?;
+pub fn set_opening_balance(conn: &Connection, amount: i64) -> Res<()> {
     conn.execute(
         "INSERT INTO settings (key, value) VALUES ('opening_balance', ?1)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -779,7 +722,7 @@ pub fn set_opening_balance(state: State<AppState>, amount: i64) -> Res<()> {
     Ok(())
 }
 
-// ---------- eksport i kopia zapasowa ----------
+// ---------- eksport i przywracanie ----------
 
 fn csv_field(s: &str) -> String {
     if s.contains([';', '"', '\n', '\r']) {
@@ -794,8 +737,8 @@ fn money(grosze: i64) -> String {
     format!("{sign}{},{:02}", grosze.abs() / 100, grosze.abs() % 100)
 }
 
-/// Zapisuje do CSV (średnik + przecinek dziesiętny, BOM – otwiera się poprawnie w polskim Excelu).
-fn write_csv(conn: &Connection, path: PathBuf, header: &str, sql: &str) -> Res<()> {
+/// CSV: średnik + przecinek dziesiętny + BOM – otwiera się poprawnie w polskim Excelu.
+fn build_csv(conn: &Connection, header: &str, sql: &str) -> Res<String> {
     let mut out = String::from("\u{feff}");
     out.push_str(header);
     out.push('\n');
@@ -816,16 +759,11 @@ fn write_csv(conn: &Connection, path: PathBuf, header: &str, sql: &str) -> Res<(
         out.push_str(&fields.join(";"));
         out.push('\n');
     }
-    fs::write(path, out).map_err(err)
+    Ok(out)
 }
 
-#[tauri::command]
-pub fn export_csv(state: State<AppState>, dir: String) -> Res<Vec<String>> {
-    let dir = PathBuf::from(dir);
-    if !dir.is_dir() {
-        return Err("Wybrany folder nie istnieje".into());
-    }
-    let conn = lock(&state)?;
+/// Wszystkie dane jako archiwum ZIP z czterema plikami CSV.
+pub fn export_zip(conn: &Connection) -> Res<Vec<u8>> {
     let files = [
         (
             "wydatki.csv",
@@ -854,26 +792,22 @@ pub fn export_csv(state: State<AppState>, dir: String) -> Res<Vec<String>> {
              FROM voucher_entries ORDER BY date, id",
         ),
     ];
-    let mut written = Vec::new();
+    let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
     for (file, header, sql) in files {
-        let path = dir.join(file);
-        write_csv(&conn, path.clone(), header, sql)?;
-        written.push(path.to_string_lossy().into_owned());
+        let csv = build_csv(conn, header, sql)?;
+        zip.start_file(file, opts).map_err(err)?;
+        zip.write_all(csv.as_bytes()).map_err(err)?;
     }
-    Ok(written)
+    Ok(zip.finish().map_err(err)?.into_inner())
 }
 
-#[tauri::command]
-pub fn backup_db(state: State<AppState>, path: String) -> Res<()> {
-    let conn = lock(&state)?;
-    conn.backup(rusqlite::MAIN_DB, &path, None).map_err(err)
-}
-
-#[tauri::command]
-pub fn restore_db(state: State<AppState>, path: String) -> Res<()> {
-    // Najpierw sprawdzamy, czy plik jest kopią tej aplikacji.
-    let src = Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(|_| "Nie udało się otworzyć pliku kopii".to_string())?;
+/// Sprawdza, czy plik jest bazą tej aplikacji (zanim cokolwiek nadpiszemy).
+pub fn validate_backup_file(path: &Path) -> Res<()> {
+    let bad = || "Wybrany plik nie jest kopią bazy budżetu".to_string();
+    let src = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|_| bad())?;
     let tables: i64 = src
         .query_row(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'
@@ -881,17 +815,42 @@ pub fn restore_db(state: State<AppState>, path: String) -> Res<()> {
             [],
             |r| r.get(0),
         )
-        .map_err(|_| "Wybrany plik nie jest kopią bazy budżetu".to_string())?;
+        .map_err(|_| bad())?;
     if tables != 5 {
-        return Err("Wybrany plik nie jest kopią bazy budżetu".into());
+        return Err(bad());
     }
-    drop(src);
+    Ok(())
+}
 
-    let mut conn = lock(&state)?;
-    conn.restore(rusqlite::MAIN_DB, &path, None::<fn(rusqlite::backup::Progress)>)
+/// Zastępuje całą bazę zawartością kopii. Aktywne sesje logowania są zachowywane,
+/// żeby przywrócenie starej kopii nikogo nie wylogowało.
+pub fn restore_from(conn: &mut Connection, path: &Path) -> Res<()> {
+    validate_backup_file(path)?;
+    let sessions: Vec<(String, String, i64, i64)> = {
+        let mut stmt = conn
+            .prepare("SELECT token_hash, username, created_at, expires_at FROM sessions")
+            .map_err(err)?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .map_err(err)?;
+        rows.collect::<Result<_, _>>().map_err(err)?
+    };
+
+    conn.restore(rusqlite::MAIN_DB, path, None::<fn(rusqlite::backup::Progress)>)
         .map_err(err)?;
-    conn.execute_batch("PRAGMA foreign_keys = ON;").map_err(err)?;
-    db::migrate(&conn).map_err(err)
+    db::configure(conn).map_err(err)?;
+    db::migrate(conn).map_err(err)?;
+
+    let tx = conn.transaction().map_err(err)?;
+    tx.execute("DELETE FROM sessions", []).map_err(err)?;
+    for (token_hash, username, created_at, expires_at) in sessions {
+        tx.execute(
+            "INSERT INTO sessions (token_hash, username, created_at, expires_at) VALUES (?1, ?2, ?3, ?4)",
+            params![token_hash, username, created_at, expires_at],
+        )
+        .map_err(err)?;
+    }
+    tx.commit().map_err(err)
 }
 
 #[cfg(test)]

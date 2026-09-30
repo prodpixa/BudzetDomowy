@@ -3,7 +3,9 @@ use std::path::Path;
 use rusqlite::{params, Connection};
 
 /// Kolejne migracje schematu. Indeks + 1 = numer wersji (PRAGMA user_version).
-const MIGRATIONS: &[&str] = &[r#"
+/// Nigdy nie edytuj istniejących wpisów – tylko dopisuj nowe na końcu.
+const MIGRATIONS: &[&str] = &[
+    r#"
     CREATE TABLE categories (
         id          INTEGER PRIMARY KEY,
         name        TEXT    NOT NULL,
@@ -65,7 +67,19 @@ const MIGRATIONS: &[&str] = &[r#"
         key    TEXT PRIMARY KEY,
         value  TEXT NOT NULL
     );
-"#];
+"#,
+    // 2: sesje logowania (wersja webowa). Trzymamy tylko skrót SHA-256 tokenu,
+    // więc wyciek bazy lub kopii zapasowej nie pozwala przejąć sesji.
+    r#"
+    CREATE TABLE sessions (
+        token_hash  TEXT    PRIMARY KEY,
+        username    TEXT    NOT NULL,
+        created_at  INTEGER NOT NULL,          -- sekundy od epoki (UTC)
+        expires_at  INTEGER NOT NULL
+    );
+    CREATE INDEX idx_sessions_expires ON sessions(expires_at);
+"#,
+];
 
 const DEFAULT_CATEGORIES: &[(&str, i64, &str)] = &[
     ("Dom", 1, "house"),
@@ -81,9 +95,20 @@ const DEFAULT_SOURCES: &[&str] = &["Pensja", "Premia", "Zwroty", "Inne"];
 
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     let conn = Connection::open(path)?;
-    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+    configure(&conn)?;
     migrate(&conn)?;
     Ok(conn)
+}
+
+/// Ustawienia połączenia. WAL: czytanie nie blokuje zapisu (dwie osoby + backup w tle).
+/// busy_timeout: przy chwilowej blokadzie czekaj zamiast od razu zwracać błąd.
+pub fn configure(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(
+        "PRAGMA foreign_keys = ON;
+         PRAGMA journal_mode = WAL;
+         PRAGMA synchronous = NORMAL;
+         PRAGMA busy_timeout = 5000;",
+    )
 }
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -125,6 +150,8 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         migrate(&conn).unwrap();
         migrate(&conn).unwrap(); // drugi raz nic nie robi
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(version, MIGRATIONS.len() as i64);
         let cats: i64 = conn.query_row("SELECT COUNT(*) FROM categories", [], |r| r.get(0)).unwrap();
         let srcs: i64 =
             conn.query_row("SELECT COUNT(*) FROM income_sources", [], |r| r.get(0)).unwrap();

@@ -2,7 +2,9 @@
   import "@fontsource-variable/inter";
   import "../app.css";
   import { onMount } from "svelte";
+  import { api, UnauthorizedError } from "$lib/api";
   import { app } from "$lib/state.svelte";
+  import Login from "$lib/components/Login.svelte";
   import Sidebar from "$lib/components/Sidebar.svelte";
   import Overlays from "$lib/components/Overlays.svelte";
   import EntryEditor from "$lib/components/EntryEditor.svelte";
@@ -12,16 +14,17 @@
   import Vouchers from "$lib/views/Vouchers.svelte";
   import Settings from "$lib/views/Settings.svelte";
 
-  let ready = $state(false);
-  let main: HTMLElement;
+  let main = $state<HTMLElement>();
 
   onMount(async () => {
     try {
+      const me = await api.me();
       await app.loadDictionaries();
+      app.user = me.username;
     } catch (e) {
-      app.error(e);
+      if (!(e instanceof UnauthorizedError)) app.error(e);
+      app.user = null;
     }
-    ready = true;
   });
 
   // Nowa zakładka zaczyna się od góry.
@@ -31,10 +34,12 @@
   });
 </script>
 
-<div class="shell">
-  <Sidebar />
-  <main bind:this={main}>
-    {#if ready}
+{#if app.user === null}
+  <Login />
+{:else if app.user}
+  <div class="shell">
+    <Sidebar />
+    <main bind:this={main}>
       {#if app.view === "dashboard"}
         <Dashboard />
       {:else if app.view === "expenses"}
@@ -48,9 +53,9 @@
       {:else}
         <Settings />
       {/if}
-    {/if}
-  </main>
-</div>
+    </main>
+  </div>
+{/if}
 
 {#if app.editor}
   {#key app.editor}
@@ -63,11 +68,18 @@
   .shell {
     display: flex;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
   }
   main {
     flex: 1;
     min-width: 0;
     overflow-y: auto;
+  }
+  /* Telefon: nawigacja na dole, treść nad nią. */
+  @media (max-width: 760px) {
+    .shell {
+      flex-direction: column-reverse;
+    }
   }
 </style>

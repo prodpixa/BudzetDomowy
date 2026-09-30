@@ -1,0 +1,31 @@
+# Budżet Domowy na Raspberry Pi. Zmienne ${…} i konta pochodzą z pliku .env obok.
+services:
+  budzet:
+    image: budzet-domowy:latest
+    container_name: budzet
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # Dostępne w sieci domowej i przez Tailscale. Router nic nie przekierowuje,
+      # więc z internetu port jest niewidoczny.
+      - "${BUDZET_HOST_PORT:-8420}:8420"
+    volumes:
+      - "${BUDZET_DATA_PATH:-/mnt/dietpi_userdata/budzet}:/data"
+    # Utwardzenie: system plików kontenera tylko do odczytu (zapis wyłącznie do /data),
+    # bez dodatkowych uprawnień jądra, bez możliwości ich podniesienia.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Serwer zużywa ~10 MB; limit chroni Pi, gdyby coś poszło nie tak.
+    mem_limit: 192m
+    pids_limit: 64
+    # Logi rotowane, żeby nie zapchały dysku.
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
