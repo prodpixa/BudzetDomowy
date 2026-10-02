@@ -1,5 +1,6 @@
 //! Serwer HTTP: API w JSON pod /api, logowanie i pliki frontendu.
 
+static TEMP_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -241,7 +242,7 @@ async fn export_zip(State(state): State<AppState>) -> Result<Response, ApiError>
 }
 
 async fn backup_download(State(state): State<AppState>) -> Result<Response, ApiError> {
-    let tmp = state.data_dir.join(format!("pobranie-{}.db", std::process::id()));
+    let tmp = state.data_dir.join(format!("pobranie-{}.db", crate::api::TEMP_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
     let path = tmp.clone();
     state.with_db(move |conn| backup::backup_to(conn, &path)).await?;
     let bytes = tokio::fs::read(&tmp).await.map_err(|e| ApiError::internal(e.to_string()))?;
@@ -250,7 +251,7 @@ async fn backup_download(State(state): State<AppState>) -> Result<Response, ApiE
 }
 
 async fn restore_upload(State(state): State<AppState>, body: Bytes) -> Result<Json<Value>, ApiError> {
-    let upload = state.data_dir.join(format!("wgrana-{}.db", std::process::id()));
+    let upload = state.data_dir.join(format!("wgrana-{}.db", crate::api::TEMP_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
     tokio::fs::write(&upload, &body).await.map_err(|e| ApiError::internal(e.to_string()))?;
     let backups = state.data_dir.join("backups");
     let path = upload.clone();
@@ -336,7 +337,7 @@ mod tests {
     use tower::ServiceExt;
 
     fn app() -> Router {
-        let dir = std::env::temp_dir().join(format!("budzet-api-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("budzet-api-test-{}", crate::api::TEMP_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("index.html"), "<html>app</html>").unwrap();
         let conn = Connection::open_in_memory().unwrap();

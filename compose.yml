@@ -6,8 +6,7 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
-      # Tylko lokalnie; z zewnątrz dostęp przez HTTPS (tailscale serve, port 8443).
-      - "127.0.0.1:${BUDZET_HOST_PORT:-8420}:8420"
+      - "${BUDZET_HOST_PORT:-8420}:8420"
     volumes:
       - "${BUDZET_DATA_PATH:-./data}:/data"
     # Utwardzenie: system plików kontenera tylko do odczytu (zapis wyłącznie do /data),
