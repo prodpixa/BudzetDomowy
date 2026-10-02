@@ -1,125 +1,107 @@
 # Budżet Domowy
 
 Aplikacja webowa do planowania budżetu domowego: przychody, wydatki z kategoriami, planowane
-wydatki/przychody (ToDo), bony żywnościowe. Działa na Raspberry Pi w sieci domowej i przez Tailscale,
-z logowaniem dla dwóch osób.
+wydatki/przychody (ToDo), bony żywnościowe. Idealna do hostowania na własnym serwerze (np. Raspberry Pi, VPS) w sieci domowej lub przez VPN (np. Tailscale). Aplikacja obsługuje logowanie dla dwóch użytkowników.
 
 **Stack:** serwer w Rust (axum + SQLite przez rusqlite), frontend SvelteKit (Svelte 5, TypeScript)
 budowany do statycznych plików, całość w jednym kontenerze Docker (~40 MB, ~10 MB RAM).
 
 ## Jak to działa
 
-```
-przeglądarka ──HTTP──▶ malinka:8420 ──▶ kontener „budzet”
+```text
+przeglądarka ──HTTP──▶ twój_serwer:8420 ──▶ kontener „budzet”
                                          ├─ budzet-server (Rust)   API /api/*, logowanie, backupy
                                          ├─ /app/static            zbudowany frontend
-                                         └─ /data  ◀── wolumen ── /mnt/dietpi_userdata/budzet/
+                                         └─ /data  ◀── wolumen ── /ścieżka/na/serwerze/
                                                ├─ budzet.db        baza SQLite
                                                └─ backups/         kopie zapasowe
 ```
 
-- **Logowanie:** dwa konta z pliku `.env` (hasła jako hash argon2id). Sesja w ciasteczku
-  `HttpOnly; SameSite=Strict`, ważna 30 dni od ostatniego użycia. Po 5 błędnych hasłach – minuta blokady.
-- **Dostęp:** port 8420 w sieci domowej i przez Tailscale. Router niczego nie przekierowuje,
-  więc z internetu aplikacja jest niewidoczna.
-- **Kopie zapasowe:** serwer sam robi kopię codziennie po 3:00 (`backups/budzet-RRRR-MM-DD.db`,
-  14 ostatnich) oraz przed każdym wdrożeniem i przywróceniem (`backups/reczna-*.db`, 10 ostatnich).
-  Kopie leżą na tym samym dysku – co jakiś czas ściągnij je na laptopa: `./deploy.sh pull-backups`.
+- **Logowanie:** Konta konfiguruje się w pliku `.env` (hasła przetrzymywane jako bezpieczny hash argon2id). Sesja przechowywana jest w ciasteczku `HttpOnly; SameSite=Strict`, ważna 30 dni od ostatniego użycia. Po 5 błędnych hasłach następuje blokada czasowa.
+- **Dostęp:** Aplikacja działa domyślnie na porcie `8420`. Najlepiej nie wystawiać jej bezpośrednio do internetu, lecz używać w sieci lokalnej (LAN) lub poprzez VPN (np. Tailscale / WireGuard).
+- **Kopie zapasowe:** Serwer sam robi kopię codziennie w nocy (zachowuje 14 ostatnich) oraz przed każdym wdrożeniem z użyciem skryptu (zachowuje 10 ostatnich). Skrypt pozwala łatwo zgrać je na własny komputer.
 
-## Pierwsze wdrożenie
+## Instalacja i Pierwsze Wdrożenie
 
-Wymagania na laptopie: Docker z dostępem bez sudo, Rust (`cargo`), Node.js, `ssh malinka` bez hasła.
+Projekt zawiera potężny skrypt `deploy.sh`, który zautomatyzuje proces testowania, budowania obrazu i wdrożenia na Twój zdalny serwer bez konieczności ręcznego kopiowania plików.
+
+**Wymagania lokalne (na Twoim komputerze):**
+- Docker (z dostępem bez `sudo`)
+- Rust (`cargo`)
+- Node.js i `npm`
+- Skonfigurowany dostęp SSH do Twojego serwera na klucz (bez hasła)
+
+### Krok 1. Inicjalizacja środowiska i haseł
+Sklonuj to repozytorium i uruchom skrypt inicjujący. Skrypt wygeneruje bezpiecznie hashe do Twoich haseł i utworzy plik `.env`.
 
 ```sh
-# 0. (jednorazowo) dostęp do Dockera bez sudo – potem wyloguj się i zaloguj ponownie
-sudo usermod -aG docker $USER
-
-# 1. konta i hasła → plik .env (hasła wpisujesz sam, zapisywane są tylko hashe)
 ./deploy.sh init-env
-
-# 2. (opcjonalnie) przenieś dane z dawnej wersji desktopowej
-./deploy.sh migrate-local
-
-# 3. zbuduj obraz arm64, wyślij na malinkę i uruchom
-./deploy.sh
 ```
 
-Aplikacja: **http://malinka:8420** (Tailscale) lub **http://&lt;adres-malinki-w-LAN&gt;:8420** w sieci domowej
-(`./deploy.sh` wypisuje oba adresy na końcu).
-Na telefonie: otwórz adres i wybierz „Dodaj do ekranu głównego” – działa jak aplikacja.
+### Krok 2. Konfiguracja serwera docelowego
+Otwórz utworzony plik `.env` i zweryfikuj zmienne (m.in. port i ścieżkę do danych na serwerze).
+Aby skrypt wdrożeniowy wiedział, gdzie wysłać aplikację, przed uruchomieniem deploy'a ustaw zmienne środowiskowe, np.:
+
+```sh
+export DEPLOY_HOST="user@adres_twojego_serwera" # domyślnie skrypt szuka hosta nazwanego "malinka"
+export DEPLOY_DIR="/opt/budzet" # miejsce instalacji na serwerze (opcjonalnie)
+```
+*(Wskazówka: Najwygodniej dodać w systemie w `~/.ssh/config` alias `malinka` wskazujący na adres IP Twojego serwera, dzięki czemu skrypt zadziała domyślnie).*
+
+### Krok 3. Wdrożenie (Deploy)
+Teraz wystarczy uruchomić:
+
+```sh
+./deploy.sh deploy
+```
+> **Ważne:** Skrypt domyślnie kompiluje obraz pod architekturę ARM64 (np. dla Raspberry Pi). Jeśli Twój serwer ma standardowy procesor (np. Intel/AMD), wejdź do pliku `deploy.sh` i usuń/zakomentuj linijkę `--platform linux/arm64`.
+
+Skrypt przeprowadzi testy, zbuduje obraz, wyśle go bezpiecznie w archiwum na serwer docelowy, zaktualizuje kontenery i uruchomi aplikację. 
+Na koniec wypisze dostępne adresy w sieci lokalnej (LAN), pod jakimi działa Twój budżet!
 
 ## Aktualizacja
 
-Po zmianach w kodzie:
-
+Po każdej zmianie w kodzie (git pull), wystarczy po prostu uruchomić:
 ```sh
 ./deploy.sh
 ```
+Dane w bazie zostają na swoim miejscu, a ewentualne migracje struktury bazy danych wykonają się same przy starcie programu.
+Jeśli nowa wersja sprawia problemy, wpisz `./deploy.sh rollback`, by błyskawicznie cofnąć się do poprzedniego działającego obrazu Dockera.
 
-Skrypt uruchamia testy, buduje nowy obraz, robi kopię bazy, podmienia kontener i sprawdza, czy
-aplikacja odpowiada. Dane w bazie zostają; zmiany schematu bazy wykonują się same przy starcie
-(migracje w `server/src/db.rs`).
+## Zarządzanie kopiami zapasowymi
 
-Gdyby nowa wersja działała źle: `./deploy.sh rollback` (wraca do poprzedniego obrazu).
-
-## Przywracanie kopii zapasowej
+Zarządzanie bazą jest zautomatyzowane w skrypcie:
 
 ```sh
-./deploy.sh backups                          # lista kopii na serwerze
-./deploy.sh restore budzet-2026-09-30.db     # przywróć kopię z serwera
-./deploy.sh restore ~/Pobrane/kopia.db       # albo plik z laptopa
+./deploy.sh backups                          # lista dostępnych kopii na serwerze
+./deploy.sh restore budzet-2026-09-30.db     # przywróć wybraną kopię z serwera
+./deploy.sh restore ~/Pobrane/kopia.db       # wgraj i przywróć plik bazy z własnego komputera
+./deploy.sh pull-backups                     # ściągnij wszystkie kopie ze zdalnego serwera (do ./backups-malinka/)
 ```
+Przed każdym przywróceniem z kopii, obecny stan bazy zabezpieczany jest jako plik `przed-przywroceniem`, zapobiegając utracie danych przy ewentualnej pomyłce. Kopię można zresztą wygodnie pobrać również w samej aplikacji z zakładki Ustawień.
 
-Przed przywróceniem obecna baza jest zapisywana jako `backups/przed-przywroceniem-*.db`, więc
-pomyłkę da się cofnąć. Kopię można też pobrać i przywrócić w aplikacji: **Ustawienia → Dane**.
-
-<details>
-<summary>Ręcznie, bez skryptu (na malince)</summary>
-
-```sh
-cd /opt/budzet
-docker compose stop
-cd /mnt/dietpi_userdata/budzet
-cp budzet.db backups/przed-przywroceniem.db
-rm -f budzet.db-wal budzet.db-shm
-cp backups/budzet-2026-09-30.db budzet.db
-chown 10001:10001 budzet.db
-cd /opt/budzet && docker compose start
-```
-</details>
-
-## Inne polecenia
+## Inne przydatne polecenia
 
 | Polecenie | Co robi |
 |---|---|
-| `./deploy.sh status` / `logs` | stan kontenera / logi na żywo |
-| `./deploy.sh backup` | kopia zapasowa teraz |
-| `./deploy.sh pull-backups` | ściąga kopie do `./backups-malinka/` |
-| `./deploy.sh hash-password` | hash nowego hasła (zmiana hasła: wklej do `.env` i `./deploy.sh`) |
+| `./deploy.sh status` / `logs` | Zwraca stan działającego kontenera / wyświetla logi serwera na żywo |
+| `./deploy.sh backup` | Wymusza natychmiastowe utworzenie kopii bazy |
+| `./deploy.sh hash-password` | Generuje hash nowego hasła (wynik należy zaktualizować w `.env` i wdrożyć) |
+| `./deploy.sh migrate-local` | Bezpiecznie wgrywa istniejącą, starszą lokalną bazę na nowouruchomiony serwer |
 
-## Rozwój lokalny
+## Rozwój lokalny (Dla programistów)
+
+Aby pracować nad kodem na własnym komputerze i widzieć zmiany na żywo:
 
 ```sh
 npm install
-npm run build && npm run dev:server   # serwer na :8420 (dane w .dev-data/)
-npm run dev                           # frontend z hot-reload na :5173, /api → :8420
+npm run build && npm run dev:server   # Uruchamia serwer na :8420 (dane trzymane lokalnie w .dev-data/)
+npm run dev                           # Uruchamia frontend z hot-reload na :5173, /api przekierowuje na serwer Rust
 ```
 
-`dev:server` potrzebuje konta w zmiennych środowiskowych, np.
-`BUDZET_USER1_NAME=test BUDZET_USER1_PASSWORD_HASH='…' npm run dev:server`.
+> **Uwaga:** Serwer do działania na komputerze wymaga zmiennych środowiskowych, w tym kont domowników (możesz np. jednorazowo wstrzyknąć parametry: `BUDZET_USER1_NAME=test BUDZET_USER1_PASSWORD_HASH='…' npm run dev:server`).
 
-Testy: `cd server && cargo test` oraz `npm run check`.
-
-## Struktura
-
-- `server/src/main.rs` – start serwera, konfiguracja z `.env`, polecenia CLI (backup, hash-password)
-- `server/src/api.rs` – trasy HTTP, sesje, pobieranie/wgrywanie plików
-- `server/src/commands.rs` – logika aplikacji i zapytania SQL
-- `server/src/db.rs` – schemat i migracje (`PRAGMA user_version`)
-- `server/src/auth.rs` – hasła, sesje, ochrona przed zgadywaniem
-- `server/src/backup.rs` – kopie zapasowe i ich rotacja
-- `src/` – frontend (widoki w `src/lib/views/`, komponenty w `src/lib/components/`)
-- `Dockerfile`, `compose.yml`, `.env.example`, `deploy.sh` – wdrożenie
+Testy można uruchomić lokalnie wykonując `cd server && cargo test` oraz dla frontendu `npm run check`.
 
 ## 💡 Współtwórcy
 - **prodpixa** - Architektura, kod (Rust/Svelte)
