@@ -43,10 +43,10 @@ Otwórz utworzony plik `.env` i zweryfikuj zmienne (m.in. port i ścieżkę do d
 Aby skrypt wdrożeniowy wiedział, gdzie wysłać aplikację, przed uruchomieniem deploy'a ustaw zmienne środowiskowe, np.:
 
 ```sh
-export DEPLOY_HOST="user@adres_twojego_serwera" # domyślnie skrypt szuka hosta nazwanego "malinka"
+export DEPLOY_HOST="user@adres_twojego_serwera" # domyślnie skrypt szuka hosta nazwanego "moj-serwer"
 export DEPLOY_DIR="/opt/budzet" # miejsce instalacji na serwerze (opcjonalnie)
 ```
-*(Wskazówka: Najwygodniej dodać w systemie w `~/.ssh/config` alias `malinka` wskazujący na adres IP Twojego serwera, dzięki czemu skrypt zadziała domyślnie).*
+*(Wskazówka: Najwygodniej dodać w systemie w `~/.ssh/config` alias `moj-serwer` wskazujący na adres IP Twojego serwera, dzięki czemu skrypt zadziała domyślnie).*
 
 ### Krok 3. Wdrożenie (Deploy)
 Teraz wystarczy uruchomić:
@@ -76,7 +76,7 @@ Zarządzanie bazą jest zautomatyzowane w skrypcie:
 ./deploy.sh backups                          # lista dostępnych kopii na serwerze
 ./deploy.sh restore budzet-2026-09-30.db     # przywróć wybraną kopię z serwera
 ./deploy.sh restore ~/Pobrane/kopia.db       # wgraj i przywróć plik bazy z własnego komputera
-./deploy.sh pull-backups                     # ściągnij wszystkie kopie ze zdalnego serwera (do ./backups-malinka/)
+./deploy.sh pull-backups                     # ściągnij wszystkie kopie ze zdalnego serwera (do ./lokalne-kopie/)
 ```
 Przed każdym przywróceniem z kopii, obecny stan bazy zabezpieczany jest jako plik `przed-przywroceniem`, zapobiegając utracie danych przy ewentualnej pomyłce. Kopię można zresztą wygodnie pobrać również w samej aplikacji z zakładki Ustawień.
 
