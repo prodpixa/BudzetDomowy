@@ -41,7 +41,7 @@ env_value() {
 
 data_path() {
   local p; p="$(env_value BUDZET_DATA_PATH)"
-  printf '%s' "${p:-/mnt/dietpi_userdata/budzet}"
+  printf '%s' "${p:-$REMOTE_DIR/data}"
 }
 
 require_env() {

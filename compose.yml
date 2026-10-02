@@ -1,4 +1,4 @@
-# Budżet Domowy na Raspberry Pi. Zmienne ${…} i konta pochodzą z pliku .env obok.
+# Budżet Domowy. Zmienne ${…} i konta pochodzą z pliku .env obok.
 services:
   budzet:
     image: budzet-domowy:latest
@@ -9,7 +9,7 @@ services:
       # Tylko lokalnie; z zewnątrz dostęp przez HTTPS (tailscale serve, port 8443).
       - "127.0.0.1:${BUDZET_HOST_PORT:-8420}:8420"
     volumes:
-      - "${BUDZET_DATA_PATH:-/mnt/dietpi_userdata/budzet}:/data"
+      - "${BUDZET_DATA_PATH:-./data}:/data"
     # Utwardzenie: system plików kontenera tylko do odczytu (zapis wyłącznie do /data),
     # bez dodatkowych uprawnień jądra, bez możliwości ich podniesienia.
     read_only: true
