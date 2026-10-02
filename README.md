@@ -120,3 +120,7 @@ Testy: `cd server && cargo test` oraz `npm run check`.
 - `server/src/backup.rs` – kopie zapasowe i ich rotacja
 - `src/` – frontend (widoki w `src/lib/views/`, komponenty w `src/lib/components/`)
 - `Dockerfile`, `compose.yml`, `.env.example`, `deploy.sh` – wdrożenie
+
+## 💡 Współtwórcy
+- **prodpixa** - Architektura, kod (Rust/Svelte)
+- **[bednarczyklucja](https://github.com/bednarczyklucja)** - Koncepcja, pomysł na projekt i logika aplikacji
