@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wdrażanie i obsługa Budżetu Domowego na Raspberry Pi („malinka”).
+# Wdrażanie i obsługa Budżetu Domowego na własnym serwerze.
 #
 #   ./deploy.sh                    zbuduj obraz (arm64) i wdróż/zaktualizuj na serwerze
 #   ./deploy.sh init-env           utwórz lokalny plik .env (konta i hasła) – interaktywnie
@@ -8,17 +8,17 @@
 #                                  przenieś lokalną bazę z wersji desktopowej na serwer
 #   ./deploy.sh backup             zrób kopię zapasową teraz
 #   ./deploy.sh backups            pokaż kopie na serwerze
-#   ./deploy.sh pull-backups       ściągnij kopie z serwera do ./backups-malinka/
+#   ./deploy.sh pull-backups       ściągnij kopie z serwera do ./lokalne-kopie/
 #   ./deploy.sh restore <plik>     przywróć bazę z kopii (nazwa z „backups” albo lokalny plik .db)
 #   ./deploy.sh rollback           wróć do poprzedniej wersji obrazu
 #   ./deploy.sh status | logs      stan kontenera / logi na żywo
 #
-# Zmienne (opcjonalnie): DEPLOY_HOST (domyślnie malinka), DEPLOY_DIR (domyślnie /opt/budzet).
+# Zmienne (opcjonalnie): DEPLOY_HOST (domyślnie moj-serwer), DEPLOY_DIR (domyślnie /opt/budzet).
 # Polskie cudzysłowy „…” w komunikatach są zamierzone.
 # shellcheck disable=SC1111
 set -euo pipefail
 
-HOST="${DEPLOY_HOST:-malinka}"
+HOST="${DEPLOY_HOST:-moj-serwer}"
 REMOTE_DIR="${DEPLOY_DIR:-/opt/budzet}"
 IMAGE="budzet-domowy"
 APP_UID=10001 # użytkownik w kontenerze (Dockerfile: USER 10001)
@@ -224,10 +224,10 @@ cmd_backups() {
 }
 
 cmd_pull_backups() {
-  mkdir -p backups-malinka
-  log "Pobieram kopie do ./backups-malinka/"
-  scp -q "$HOST:$(data_path)/backups/*.db" backups-malinka/
-  ls -lh backups-malinka/
+  mkdir -p lokalne-kopie
+  log "Pobieram kopie do ./lokalne-kopie/"
+  scp -q "$HOST:$(data_path)/backups/*.db" lokalne-kopie/
+  ls -lh lokalne-kopie/
 }
 
 cmd_restore() {
